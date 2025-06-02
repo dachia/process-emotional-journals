@@ -5,6 +5,7 @@ import frontmatter
 from datetime import datetime, date
 from typing import Dict, List, Optional, Any
 import json
+import re
 
 class JournalEntry:
     def __init__(self, file_path: str, content: str, metadata: Optional[Dict[str, Any]] = None):
@@ -26,13 +27,20 @@ class JournalEntry:
         return processed
 
     def _extract_date_from_path(self, file_path: str) -> Optional[str]:
-        """Extract date from file path (format: YYYY-MM-DD.md)"""
+        """Extract date from file path (format: YYYY-MM-DD.md or 🧠 Emotional Journal YYYY-MM-DD.md)"""
         try:
             filename = os.path.basename(file_path)
-            date_str = filename.split('.')[0]
-            # Validate date format
-            datetime.strptime(date_str, '%Y-%m-%d')
-            return date_str
+            # Remove .md extension
+            name_without_ext = filename.rsplit('.', 1)[0]
+            
+            # Try to find date pattern YYYY-MM-DD in the filename
+            date_match = re.search(r'(\d{4}-\d{2}-\d{2})', name_without_ext)
+            if date_match:
+                date_str = date_match.group(1)
+                # Validate date format
+                datetime.strptime(date_str, '%Y-%m-%d')
+                return date_str
+            return None
         except (ValueError, IndexError):
             return None
 
@@ -103,38 +111,68 @@ class JournalEntry:
                         self._debug_check_date_objects(item, f"{context} -> {key}[{i}]")
 
     def _extract_emotional_content(self, content: str) -> str:
-        """Extract emotional/reflective content based on presence of ## emotion dump section"""
+        """Extract emotional/reflective content based on presence of emotion sections"""
         lines = content.split('\n')
         emotional_lines = []
-        in_emotion_dump = False
-        has_emotion_dump = False
-        journal_lines = ['## 🌀What do I feel right this moment?', '## emotion dump', '### Journal']
-        # First check if file contains ## emotion dump section
-        for line in lines:
-            if line.strip() in journal_lines:
-                has_emotion_dump = True
-                break
-                
-        # Process lines based on whether emotion dump section exists
+        non_task_lines = []
+        
+        # Define section headers
+        section_headers = [
+            '## 🌀What do I feel right this moment?',
+            '## 🔍Where is it coming from?',
+            '## 🛤️Do I need to solve it? How?',
+            '## emotion dump',
+            '### Journal'
+        ]
+        
+        # Track sections and their content
+        current_section = None
+        section_content = []
+        sections = {}
+        has_sections = False
+        
         for line in lines:
             line = line.strip()
             if not line:
                 continue
                 
-            if has_emotion_dump:
-                # Only collect content after ## emotion dump
-                if line in journal_lines:
-                    in_emotion_dump = True
-                    continue
-                    
-                if in_emotion_dump:
-                    emotional_lines.append(line)
+            # Check if this is a section header
+            if line in section_headers:
+                has_sections = True
+                # Save previous section if it had content
+                if current_section and section_content:
+                    sections[current_section] = '\n'.join(section_content)
+                # Start new section
+                current_section = line
+                section_content = []
+            # Skip task lines
+            elif line.startswith('- [') or line.startswith('\t- ['):
+                continue
+            # Add content to current section if we're in one
+            elif current_section:
+                section_content.append(line)
+            # If no sections found, collect all non-task content
+            elif not has_sections and not line.startswith('#'):
+                non_task_lines.append(line)
+        
+        # Save last section if it had content
+        if current_section and section_content:
+            sections[current_section] = '\n'.join(section_content)
+        
+        # If structured content exists, format it with headers
+        if has_sections:
+            if sections:
+                for header, content in sections.items():
+                    if content.strip():  # Only add if there's non-whitespace content
+                        emotional_lines.append(header)
+                        emotional_lines.append(content)
+                        emotional_lines.append('')  # Add blank line between sections
+                return '\n'.join(emotional_lines).strip()
             else:
-                # Collect all non-task content if no emotion dump section
-                if not line.startswith('- [') and not line.startswith('\t- ['):
-                    emotional_lines.append(line)
-                    
-        return '\n'.join(emotional_lines)
+                return ''
+        
+        # If no structured content, return all non-task content
+        return '\n'.join(non_task_lines).strip()
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert entry to dictionary format"""
@@ -143,6 +181,7 @@ class JournalEntry:
             'date': self.date,
             'tasks': self.tasks,
             'emotional_content': self.emotional_content,
+            'content': self.content,
             'metadata': self.metadata
         }
         # Debug: Check for date objects in the entire entry
