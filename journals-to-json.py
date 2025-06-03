@@ -1,6 +1,5 @@
 import os
 from pathlib import Path
-import markdown
 import frontmatter
 from datetime import datetime, date
 from typing import Dict, List, Optional, Any
@@ -124,12 +123,19 @@ class JournalEntry:
             '## emotion dump',
             '### Journal'
         ]
-        
+        subheaders = [
+            '> Unfiltered. Go at it. Dump what you feel. It\'s for me. Deepest-darkest',
+            '> Where the feeling is coming from? What\'s behind it? Don\'t overthink, just dig',
+            '> Do I need to find a path forward? Is knowledge enough?',
+        ]
         # Track sections and their content
         current_section = None
         section_content = []
         sections = {}
         has_sections = False
+        
+        # Check if this is an emotional journal entry
+        is_emotional_journal = '🧠 Emotional Journal' in self.file_path
         
         for line in lines:
             line = line.strip()
@@ -142,11 +148,15 @@ class JournalEntry:
                 # Save previous section if it had content
                 if current_section and section_content:
                     sections[current_section] = '\n'.join(section_content)
-                # Start new section
+                # Start new section but don't include the header
                 current_section = line
                 section_content = []
+                continue
             # Skip task lines
             elif line.startswith('- [') or line.startswith('\t- ['):
+                continue
+            # Skip subheaders for emotional journals
+            elif is_emotional_journal and line in subheaders:
                 continue
             # Add content to current section if we're in one
             elif current_section:
@@ -162,12 +172,8 @@ class JournalEntry:
         # If structured content exists, format it with headers
         if has_sections:
             if sections:
-                for header, content in sections.items():
-                    if content.strip():  # Only add if there's non-whitespace content
-                        emotional_lines.append(header)
-                        emotional_lines.append(content)
-                        emotional_lines.append('')  # Add blank line between sections
-                return '\n'.join(emotional_lines).strip()
+                content_lines = [content for _, content in sections.items() if content.strip()]
+                return '\n'.join(content_lines).strip()
             else:
                 return ''
         
