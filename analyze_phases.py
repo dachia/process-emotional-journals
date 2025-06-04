@@ -1,8 +1,6 @@
 import os
 from openai import OpenAI
-from dotenv import load_dotenv
-
-load_dotenv()
+from utils import get_openai_client, ensure_directory
 
 def read_phase_file(filename):
     """Read entries from a phase file and return them as a list of (date, text) tuples."""
@@ -38,7 +36,7 @@ def format_entries_for_gpt(entries, phase_name):
 
 def analyze_with_gpt(early_entries, middle_entries, late_entries):
     """Send formatted entries to GPT for analysis."""
-    client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+    client = get_openai_client()
     
     # Format the prompt
     prompt = """Analyze the following journal entries split into three phases: Early, Middle, and Late.

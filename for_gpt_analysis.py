@@ -3,6 +3,8 @@ import pinecone
 import os
 from dotenv import load_dotenv
 from datetime import datetime
+from utils import search_pinecone, save_json
+
 load_dotenv()
 
 # Initialize OpenAI client
@@ -47,79 +49,14 @@ def search_phase(query_text, start_date, end_date, top_k=10):
         (match['metadata'].get('date', ''), match['metadata']['text'])
         for match in result['matches']
     ]
-# early_texts = [
-#     "борьба с собой и своими чувствами",
-#     "стыд, вина, неприятие себя",
-#     "страх, беспомощность, разобщенность"
-# ]
-# middle_texts = [
-#     "путаница, сомнения, поиски смысла",
-#     "первые попытки понять и принять себя",
-#     "наблюдение за собой и своими чувствами"
-# ]
-# late_texts = [
-#     "осознание и принятие себя таким, какой есть",
-#     "выбор себя, внутреннее согласие",
-#     "разрешение себе чувствовать без борьбы"
-# ]
 
-# # Early Phase
-# early_entries = search_phase(
-#     query_text=early_texts,
-#     start_date="2023-10-24",
-#     end_date="2024-07-01",
-#     top_k=20
-# )
-
-# # Middle Phase
-# middle_entries = search_phase(
-#     query_text=middle_texts,
-#     start_date="2024-07-02",
-#     end_date="2025-02-15",
-#     top_k=20
-# )
-
-# Late Phase
-# late_entries = search_phase(
-#     query_text=late_texts,
-#     start_date="2025-02-16",
-#     end_date="2025-06-02",
-#     top_k=20
-# )
-# Save results to files
 def save_entries(filename, entries):
+    """Save entries to a file with date and text."""
     with open(filename, 'w', encoding='utf-8') as f:
         for date, text in entries:
             f.write(f"Date: {date}\n{text.strip()}\n\n")
 
-# save_entries('early_phase_entries.txt', early_entries)
-# save_entries('middle_phase_entries.txt', middle_entries)
-# save_entries('late_phase_entries.txt', late_entries)
-
-
-# early_entries = search_phase(
-#     query_text=early_texts,
-#     start_date="2023-10-24",
-#     end_date="2024-07-01",
-#     top_k=20
-# )
-
-# # Middle Phase
-# middle_entries = search_phase(
-#     query_text=middle_texts,
-#     start_date="2024-07-02",
-#     end_date="2025-02-15",
-#     top_k=20
-# )
-
-# Late Phase
-# late_entries = search_phase(
-#     query_text=late_texts,
-#     start_date="2025-02-16",
-#     end_date="2025-06-02",
-#     top_k=20
-# )
-
+# Define search terms for different phases
 search_terms = [
     "я размышлял о себе",                   # self-reflection
     "я решил принять себя",                 # decision to accept myself
@@ -132,21 +69,25 @@ search_terms = [
     "я заметил свой старый паттерн"          # noticing old pattern
 ]
 
-
-found_terms = {}
-for term in search_terms:
-    result = search_phase(
-        query_text=[term],
-        start_date="2023-10-24",
-        end_date="2024-07-01",
-        top_k=20
-    )
-    found_terms[term] = result
+def main():
+    # Search for each term
+    found_terms = {}
+    for term in search_terms:
+        result = search_pinecone(
+            query_text=term,
+            start_date="2023-10-24",
+            end_date="2024-07-01",
+            top_k=20
+        )
+        found_terms[term] = [(r['date'], r['text']) for r in result]
     
-## save entries to single file grouped by term
-with open('found_terms.txt', 'w', encoding='utf-8') as f:
-    for term, matches in found_terms.items():
-        f.write(f"{term}\n")
-        for date, text in matches:
-            f.write(f"{date}: {text}\n")
-            f.write("\n")
+    # Save results to file
+    with open('found_terms.txt', 'w', encoding='utf-8') as f:
+        for term, matches in found_terms.items():
+            f.write(f"{term}\n")
+            for date, text in matches:
+                f.write(f"{date}: {text}\n")
+                f.write("\n")
+
+if __name__ == "__main__":
+    main()

@@ -3,6 +3,7 @@ from collections import defaultdict
 from datetime import datetime
 import re
 import csv
+from utils import load_json, save_json
 
 def save_daily_stats_to_csv(entries_per_day, words_per_day, filename='daily_journal_stats.csv'):
     """Save daily statistics to a CSV file."""
@@ -21,8 +22,7 @@ def save_daily_stats_to_csv(entries_per_day, words_per_day, filename='daily_jour
 
 def analyze_journals():
     # Read the journal entries
-    with open('journal_entries.json', 'r', encoding='utf-8') as f:
-        entries = json.load(f)
+    entries = load_json('journal_entries.json')
     
     # Initialize counters and data structures
     total_entries = len(entries)

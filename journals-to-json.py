@@ -5,6 +5,10 @@ from datetime import datetime, date
 from typing import Dict, List, Optional, Any
 import json
 import re
+from utils import (
+    save_json, ensure_directory, is_section_header,
+    is_section_subheader, is_task_line, SECTION_HEADERS
+)
 
 class JournalEntry:
     def __init__(self, file_path: str, content: str, metadata: Optional[Dict[str, Any]] = None):
@@ -64,8 +68,6 @@ class JournalEntry:
                         'subtasks': current_subtasks,
                         'completed': 'x' in current_task[:4]
                     }
-                    # Debug: Check for date objects in task
-                    self._debug_check_date_objects(task_dict, f"Task in {self.file_path}: {current_task}")
                     tasks.append(task_dict)
                 
                 # Start new task
@@ -79,8 +81,6 @@ class JournalEntry:
                     'task': subtask,
                     'completed': 'x' in line[:line.find(']') + 1]
                 }
-                # Debug: Check for date objects in subtask
-                self._debug_check_date_objects(subtask_dict, f"Subtask in {self.file_path}: {subtask}")
                 current_subtasks.append(subtask_dict)
         
         # Add last task if exists
@@ -90,24 +90,9 @@ class JournalEntry:
                 'subtasks': current_subtasks,
                 'completed': 'x' in current_task[:4]
             }
-            # Debug: Check for date objects in last task
-            self._debug_check_date_objects(task_dict, f"Last task in {self.file_path}: {current_task}")
             tasks.append(task_dict)
             
         return tasks
-
-    def _debug_check_date_objects(self, obj: Any, context: str) -> None:
-        """Helper function to check for date objects in dictionaries"""
-        if isinstance(obj, dict):
-            for key, value in obj.items():
-                if isinstance(value, (date, datetime)):
-                    print(f"Found date object in {context}")
-                    print(f"Key: {key}, Value: {value}, Type: {type(value)}")
-                elif isinstance(value, dict):
-                    self._debug_check_date_objects(value, f"{context} -> {key}")
-                elif isinstance(value, list):
-                    for i, item in enumerate(value):
-                        self._debug_check_date_objects(item, f"{context} -> {key}[{i}]")
 
     def _extract_emotional_content(self, content: str) -> str:
         """Extract emotional/reflective content based on presence of emotion sections"""
@@ -115,19 +100,6 @@ class JournalEntry:
         emotional_lines = []
         non_task_lines = []
         
-        # Define section headers
-        section_headers = [
-            '## 🌀What do I feel right this moment?',
-            '## 🔍Where is it coming from?',
-            '## 🛤️Do I need to solve it? How?',
-            '## emotion dump',
-            '### Journal'
-        ]
-        subheaders = [
-            '> Unfiltered. Go at it. Dump what you feel. It\'s for me. Deepest-darkest',
-            '> Where the feeling is coming from? What\'s behind it? Don\'t overthink, just dig',
-            '> Do I need to find a path forward? Is knowledge enough?',
-        ]
         # Track sections and their content
         current_section = None
         section_content = []
@@ -143,7 +115,7 @@ class JournalEntry:
                 continue
                 
             # Check if this is a section header
-            if line in section_headers:
+            if is_section_header(line):
                 has_sections = True
                 # Save previous section if it had content
                 if current_section and section_content:
@@ -153,10 +125,10 @@ class JournalEntry:
                 section_content = []
                 continue
             # Skip task lines
-            elif line.startswith('- [') or line.startswith('\t- ['):
+            elif is_task_line(line):
                 continue
             # Skip subheaders for emotional journals
-            elif is_emotional_journal and line in subheaders:
+            elif is_emotional_journal and is_section_subheader(line):
                 continue
             # Add content to current section if we're in one
             elif current_section:
@@ -182,7 +154,7 @@ class JournalEntry:
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert entry to dictionary format"""
-        entry_dict = {
+        return {
             'file_path': self.file_path,
             'date': self.date,
             'tasks': self.tasks,
@@ -190,9 +162,6 @@ class JournalEntry:
             'content': self.content,
             'metadata': self.metadata
         }
-        # Debug: Check for date objects in the entire entry
-        self._debug_check_date_objects(entry_dict, f"Entry {self.file_path}")
-        return entry_dict
 
 class JournalProcessor:
     def __init__(self, root_dir: str):
@@ -227,17 +196,7 @@ class JournalProcessor:
     def save_to_json(self, output_file: str) -> None:
         """Save processed entries to a JSON file"""
         entries_dict = [entry.to_dict() for entry in self.entries]
-        # Debug: Print the first problematic entry if any
-        for i, entry in enumerate(entries_dict):
-            try:
-                json.dumps(entry)
-            except TypeError as e:
-                print(f"Problematic entry found at index {i}:")
-                print(f"File: {entry.get('file_path')}")
-                print(f"Error: {str(e)}")
-                raise
-        with open(output_file, 'w', encoding='utf-8') as f:
-            json.dump(entries_dict, f, ensure_ascii=False, indent=2)
+        save_json(entries_dict, output_file)
 
 def main():
     # Initialize processor with the journal directory

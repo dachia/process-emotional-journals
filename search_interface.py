@@ -6,6 +6,7 @@ import pinecone
 from dotenv import load_dotenv
 from typing import List, Dict, Literal
 import tiktoken
+from utils import search_pinecone, ensure_directory
 
 # Load environment variables
 load_dotenv()
@@ -71,7 +72,7 @@ def home():
 def search_endpoint():
     data = request.json
     query = data.get('query', '')
-    granularity = data.get('granularity', 'paragraph_chunk')
+    granularity = data.get('granularity', 'paragraphs')
     
     if not query:
         return jsonify({'error': 'Query is required'}), 400
@@ -86,11 +87,11 @@ def search_endpoint():
     if granularity not in granularity_map:
         return jsonify({'error': 'Invalid granularity'}), 400
     
-    results = search(query, granularity_map[granularity])
+    results = search_pinecone(query, granularity_map[granularity])
     return jsonify({'results': results})
 
 # Create templates directory and search.html
-os.makedirs('templates', exist_ok=True)
+ensure_directory('templates')
 
 # Create the HTML template
 with open('templates/search.html', 'w') as f:
