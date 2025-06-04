@@ -75,3 +75,5 @@ coverage.xml
 📁06 - *
 journal_entries.json
 indexing_progress.json
+*.txt
+*.csv

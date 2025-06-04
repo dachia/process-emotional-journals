@@ -1,0 +1,111 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Journal Search</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <style>
+        .result-card {
+            transition: all 0.3s ease;
+        }
+        .result-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <div class="container mx-auto px-4 py-8">
+        <h1 class="text-3xl font-bold text-center mb-8 text-gray-800">Journal Search</h1>
+        
+        <div class="max-w-2xl mx-auto bg-white rounded-lg shadow-md p-6 mb-8">
+            <div class="flex flex-col space-y-4">
+                <input type="text" id="searchInput" 
+                       class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                       placeholder="Enter your search query...">
+                
+                <div class="flex space-x-4">
+                    <select id="granularity" class="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                        <option value="paragraphs">Paragraphs</option>
+                        <option value="sentences">Sentences</option>
+                        <option value="journals">Whole Journals</option>
+                    </select>
+                    
+                    <button onclick="performSearch()" 
+                            class="px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+                        Search
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <div id="results" class="max-w-4xl mx-auto space-y-4">
+            <!-- Results will be inserted here -->
+        </div>
+    </div>
+
+    <script>
+        async function performSearch() {
+            const query = document.getElementById('searchInput').value;
+            const granularity = document.getElementById('granularity').value;
+            const resultsDiv = document.getElementById('results');
+            
+            if (!query) {
+                alert('Please enter a search query');
+                return;
+            }
+            
+            resultsDiv.innerHTML = '<div class="text-center"><div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto"></div></div>';
+            
+            try {
+                const response = await fetch('/search', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ query, granularity }),
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    displayResults(data.results);
+                } else {
+                    resultsDiv.innerHTML = `<div class="text-red-500 text-center">${data.error}</div>`;
+                }
+            } catch (error) {
+                resultsDiv.innerHTML = '<div class="text-red-500 text-center">An error occurred while searching</div>';
+            }
+        }
+        
+        function displayResults(results) {
+            const resultsDiv = document.getElementById('results');
+            
+            if (results.length === 0) {
+                resultsDiv.innerHTML = '<div class="text-center text-gray-500">No results found</div>';
+                return;
+            }
+            
+            resultsDiv.innerHTML = results.map((result, index) => `
+                <div class="result-card bg-white rounded-lg shadow-md p-6 hover:shadow-lg">
+                    <div class="flex justify-between items-start mb-2">
+                        <span class="text-sm text-gray-500">${result.date}</span>
+                        <span class="text-sm text-blue-500">Similarity: ${(result.similarity * 100).toFixed(1)}%</span>
+                    </div>
+                    <p class="text-gray-800 whitespace-pre-wrap">${result.text}</p>
+                </div>
+            `).join('');
+        }
+        
+        // Allow search on Enter key
+        document.getElementById('searchInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                performSearch();
+            }
+        });
+    </script>
+</body>
+</html>
+    

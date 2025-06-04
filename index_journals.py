@@ -15,14 +15,14 @@ import sys
 # Load environment variables
 load_dotenv()
 
+
 # Initialize OpenAI and Pinecone
 api_key = os.getenv("OPENAI_API_KEY")
 if not api_key:
     raise ValueError("OPENAI_API_KEY environment variable is not set")
 
-client = OpenAI(
-    api_key=api_key,
-)  # This will automatically use OPENAI_API_KEY from environment
+client = OpenAI(api_key=api_key)
+
 pc = pinecone.Pinecone(
     api_key=os.getenv("PINECONE_API_KEY"),
 )
@@ -100,14 +100,19 @@ def split_into_sentences(text: str) -> List[str]:
 def split_into_paragraphs(text: str) -> List[str]:
     """Split text into paragraphs."""
     # Split by double newlines and clean up
-    paragraphs = [p.strip() for p in text.split('\n\n') if p.strip()]
+    paragraphs = [p.strip() for p in text.split('\n') if p.strip()]
     return paragraphs
 
 def create_metadata(entry_date: str, granularity: str, text: str, index: int = None) -> Dict[str, Any]:
     """Create metadata for a journal entry."""
+    # Convert string date to timestamp for numeric filtering
+    timestamp = int(datetime.strptime(entry_date, '%Y-%m-%d').timestamp())
+    
     metadata = {
-        "date": entry_date,
+        "date": entry_date,  # Keep the string date for display
+        "timestamp": timestamp,  # Add numeric timestamp for filtering
         "granularity": granularity,
+        "text": text,  # Store the actual text
         "text_length": len(text),
         "created_at": datetime.utcnow().isoformat()
     }
@@ -148,18 +153,18 @@ def process_journal_entry(entry: Dict[str, Any]) -> List[Dict[str, Any]]:
                     "metadata": create_metadata(date, "paragraph_chunk", chunk, f"{i}_{j}")
                 })
     
-    # Process sentences
-    sentences = split_into_sentences(content)
-    for i, sent in enumerate(sentences):
-        if sent.strip():
-            # Split sentence into chunks if needed (rare but possible)
-            chunks = split_into_chunks(sent)
-            for j, chunk in enumerate(chunks):
-                vectors.append({
-                    "id": f"{date}_sent_{i}_chunk_{j}",
-                    "values": get_embedding(chunk),
-                    "metadata": create_metadata(date, "sentence_chunk", chunk, f"{i}_{j}")
-                })
+    # # Process sentences
+    # sentences = split_into_sentences(content)
+    # for i, sent in enumerate(sentences):
+    #     if sent.strip():
+    #         # Split sentence into chunks if needed (rare but possible)
+    #         chunks = split_into_chunks(sent)
+    #         for j, chunk in enumerate(chunks):
+    #             vectors.append({
+    #                 "id": f"{date}_sent_{i}_chunk_{j}",
+    #                 "values": get_embedding(chunk),
+    #                 "metadata": create_metadata(date, "sentence_chunk", chunk, f"{i}_{j}")
+    #             })
     
     return vectors
 
@@ -220,22 +225,23 @@ def main():
                 region="us-east-1"
             )
         )
+    else:
+        # If index exists and --clear flag is used, delete all vectors
+        if args.clear:
+            index = pc.Index(INDEX_NAME)
+            try:
+                index.delete(delete_all=True)
+                print("Cleared existing vectors from index")
+                if os.path.exists(PROGRESS_FILE):
+                    os.remove(PROGRESS_FILE)
+                    print("Cleared progress file")
+            except Exception as e:
+                if "Namespace not found" in str(e):
+                    print("Index is empty, proceeding with new data")
+                else:
+                    raise e
     
     index = pc.Index(INDEX_NAME)
-    
-    # Only clear index and progress if --clear flag is used
-    if args.clear:
-        try:
-            index.delete(delete_all=True)
-            print("Cleared existing vectors from index")
-            if os.path.exists(PROGRESS_FILE):
-                os.remove(PROGRESS_FILE)
-                print("Cleared progress file")
-        except Exception as e:
-            if "Namespace not found" in str(e):
-                print("Index is empty, proceeding with new data")
-            else:
-                raise e
     
     # Load journal entries and progress
     print("Loading journal entries...")
